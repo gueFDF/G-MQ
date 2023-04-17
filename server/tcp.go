@@ -2,7 +2,7 @@ package server
 
 import (
 	"MQ/abstract"
-	"MQ/log"
+	"MQ/mlog"
 	"net"
 	"sync"
 )
@@ -28,10 +28,17 @@ func (p *tcpServer) Handle(conn net.Conn) {
 	p.conns.Store(conn.RemoteAddr(), client) //存入
 	err := prot.IOLOOP(client)
 	if err != nil {
-		log.Error("client(%s) - %s", conn.RemoteAddr(), err)
+		mlog.Error("client(%s) - %s", conn.RemoteAddr(), err)
 	}
 
 	p.conns.Delete(conn.RemoteAddr())
 	client.Close()
 
+}
+
+func (p *tcpServer) Close() {
+	p.conns.Range(func(key, value interface{}) bool {
+		value.(abstract.Client).Close()
+		return true
+	})
 }
