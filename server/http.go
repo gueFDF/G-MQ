@@ -25,7 +25,7 @@ func newHTTPServer(nsqd *NSQD, tlsEnable bool, tlsRequired bool) *httpServer {
 		nsqd:        nsqd,
 		tlsEnabled:  tlsEnable,
 		tlsRequired: tlsRequired,
-		router:      router,
+		router:      router,		
 	}
 	//TODO: 注册方法
 

@@ -84,4 +84,13 @@ func decodeMessage(b []byte) (*Message, error) {
 	return &msg, nil
 }
 
-//TODO:  writeMessageToBackend 用于写入磁盘队列
+// TODO:  writeMessageToBackend 用于写入磁盘队列
+func writeMessageToBackend(msg *Message, bq BackendQueue) error {
+	buf := bufferPoolGet()
+	defer bufferPoolPut(buf)
+	_, err := msg.WriteTo(buf)
+	if err != nil {
+		return err
+	}
+	return bq.Put(buf.Bytes())
+}
