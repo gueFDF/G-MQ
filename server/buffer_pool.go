@@ -1,6 +1,6 @@
 package server
 
-//此文件包是bytes.Buffer池子
+//此文件包是bytes.Buffer池子，是一层优化
 import (
 	"bytes"
 	"sync"
@@ -8,6 +8,7 @@ import (
 
 var bp sync.Pool
 
+// 初始化
 func init() {
 	bp.New = func() interface{} {
 		return &bytes.Buffer{}
