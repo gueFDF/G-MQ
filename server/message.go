@@ -37,6 +37,15 @@ func NewMessage(id MessageID, body []byte) *Message {
 	}
 }
 
+// 这三个接口用于in_flight_queue
+func (m *Message) Getpri() int64 {
+	return m.pri
+}
+
+func (m *Message) SetIndex(index int) {
+	m.index = index
+}
+
 //消息协议
 /*
 timestap(8-byte)+Attempts(2-byte)+message ID(16-byte) + message body(n-byte)

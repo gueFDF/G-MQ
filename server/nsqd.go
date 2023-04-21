@@ -26,7 +26,7 @@ func (n *NSQD) Main() error {
 	exitFunc := func(err error) {
 		once.Do(func() {
 			if err != nil {
-				mlog.Fatal("%s", err)
+				mlog.Fatal(err.Error())
 			}
 			exitCh <- err
 		})

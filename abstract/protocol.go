@@ -15,7 +15,7 @@ type Protocol interface {
 	IOLOOP(Client) error
 }
 
-// 写消息，处理年黏包
+// 写消息，处理黏包
 func SendResponse(w io.Writer, data []byte) (int, error) {
 	err := binary.Write(w, binary.BigEndian, int32(len(data)))
 	if err != nil {
