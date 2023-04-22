@@ -23,7 +23,18 @@ type Options struct {
 
 	// msg and command options
 	MsgTimeout    time.Duration //消息的超时时间
+	MaxMsgSize    int64         //消息的最大大小
+	MaxBodySize   int64
 	ClientTimeout time.Duration
+
+	MaxChannelConsumers int //channel的最大订阅数 （0表示没有限制）
+
+	// diskqueue options
+	DataPath        string        //磁盘文件存储路径
+	MemQueueSize    int64         //msgChan的缓冲大小
+	MaxBytesPerFile int64         //磁盘文件的最大大小
+	SyncEvery       int64         //读写多少次进行一次刷新
+	SyncTimeout     time.Duration //多长时间进行一次刷新
 }
 
 func NewOptions() *Options {
@@ -38,15 +49,26 @@ func NewOptions() *Options {
 	defaultID := int64(crc32.ChecksumIEEE(h.Sum(nil)) % 1024)
 
 	return &Options{
-		ID:                       defaultID,
-		logLevel:                 mlog.INFO,
-		logPrefix:                "[nsqd]",
+		ID:        defaultID,
+		logLevel:  mlog.INFO,
+		logPrefix: "[nsqd]",
+
 		TCPAddress:               "0.0.0.0:4150",
 		HTTPAddress:              "0.0.0.0:4151",
 		HTTPSAddress:             "0.0.0.0:4152",
 		HTTPClientConnectTimeout: 2 * time.Second,
 		HTTPClientRequestTimeout: 5 * time.Second,
-		MsgTimeout:               60 * time.Second,
-		ClientTimeout:            60 * time.Second,
+
+		MsgTimeout:    60 * time.Second,
+		MaxMsgSize:    1024 * 1024,
+		MaxBodySize:   5 * 1024 * 1024,
+		ClientTimeout: 60 * time.Second,
+
+		MaxChannelConsumers: 0,
+
+		MemQueueSize:    10000,
+		MaxBytesPerFile: 100 * 1024 * 1024,
+		SyncEvery:       2500,
+		SyncTimeout:     2 * time.Second,
 	}
 }

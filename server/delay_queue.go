@@ -22,8 +22,8 @@ type DelayPqueue struct {
 	pqueue abstract.Priority_Queue
 }
 
-func newDelayPqueue(capacity int) *DelayPqueue {
-	return &DelayPqueue{
+func newDelayPqueue(capacity int) DelayPqueue {
+	return DelayPqueue{
 		pqueue: abstract.NewQueue(capacity),
 	}
 }

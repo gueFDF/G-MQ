@@ -22,7 +22,7 @@ type Message struct {
 	Attempts  uint16 //尝试重发次数
 
 	//flighting handle
-	dis_time int64         //消息分发时间time.Now()
+	dis_time time.Time     //消息分发时间time.Now()
 	clientID int64         //客户端ID
 	pri      int64         //优先级，也就是该消息的过期时间，快过期的消息优先级高(time.Now().Add(timeout).UnixNano())
 	index    int           //用于优先级队列，定位索引

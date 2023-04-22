@@ -6,6 +6,7 @@ import (
 	"MQ/util"
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 type NSQD struct {
@@ -18,6 +19,8 @@ type NSQD struct {
 
 	waitgroup util.WaitGroupWrapper //管理子协程
 	dl        *util.DirLock         //封装的文件锁
+
+	opts atomic.Value // 配置信息结构体，所有配置信息都在这里，初始化时进行设置
 }
 
 func (n *NSQD) Main() error {
@@ -62,4 +65,13 @@ func (n *NSQD) RealHTTPSAddr() *net.TCPAddr {
 		return &net.TCPAddr{}
 	}
 	return n.httpsListener.Addr().(*net.TCPAddr)
+}
+
+// 下面两个文件是配置文件操作
+func (n *NSQD) getOpts() *Options {
+	return n.opts.Load().(*Options)
+}
+
+func (n *NSQD) swapOpts(opts *Options) {
+	n.opts.Store(opts)
 }

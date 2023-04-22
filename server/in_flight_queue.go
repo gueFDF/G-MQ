@@ -8,8 +8,8 @@ type InFlightPqueue struct {
 	pqueue abstract.Priority_Queue
 }
 
-func newInFlightPqueue(capacity int) *InFlightPqueue {
-	return &InFlightPqueue{
+func newInFlightPqueue(capacity int) InFlightPqueue {
+	return InFlightPqueue{
 		pqueue: abstract.NewQueue(capacity),
 	}
 }
