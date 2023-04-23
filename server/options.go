@@ -23,7 +23,7 @@ type Options struct {
 
 	// msg and command options
 	MsgTimeout    time.Duration //消息的超时时间
-	MaxMsgTimeout time.Duration //消息的最长超时时间，如果超过不再进行重发
+	MaxMsgTimeout time.Duration //消息的最长超时时间，如果超过则将会将该消息的超时时间设置这个，减少重发次数
 	MaxMsgSize    int64         //消息的最大大小
 	MaxBodySize   int64
 	ClientTimeout time.Duration
