@@ -271,7 +271,7 @@ func (d *diskQueue) sync() error {
 	return nil
 }
 
-// 清空所有数据，只保留已读文件
+// 清空所有数据
 func (d *diskQueue) Empty() error {
 	d.RLock()
 	defer d.RUnlock()
