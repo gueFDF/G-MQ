@@ -23,6 +23,7 @@ type Options struct {
 
 	// msg and command options
 	MsgTimeout    time.Duration //消息的超时时间
+	MaxMsgTimeout time.Duration //消息的最长超时时间，如果超过不再进行重发
 	MaxMsgSize    int64         //消息的最大大小
 	MaxBodySize   int64
 	ClientTimeout time.Duration
@@ -60,6 +61,7 @@ func NewOptions() *Options {
 		HTTPClientRequestTimeout: 5 * time.Second,
 
 		MsgTimeout:    60 * time.Second,
+		MaxMsgTimeout: 15 * time.Minute,
 		MaxMsgSize:    1024 * 1024,
 		MaxBodySize:   5 * 1024 * 1024,
 		ClientTimeout: 60 * time.Second,
