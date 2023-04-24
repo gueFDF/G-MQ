@@ -89,7 +89,7 @@ func NewChannel(topicName, channelName string, nsqd *NSQD, deleteCallback delete
 		clients:        make(map[int64]Consumer),
 		deleteCallback: deleteCallback,
 		nsqd:           nsqd,
-		ephemeral:      strings.HasSuffix(channelName, "#ephemeral"), //通关channel的前缀判断channel是否是一个临时的channel
+		ephemeral:      strings.HasSuffix(channelName, "#ephemeral"), //通关channel的后缀判断channel是否是一个临时的channel
 	}
 
 	if nsqd.getOpts().MemQueueSize > 0 || c.ephemeral {
