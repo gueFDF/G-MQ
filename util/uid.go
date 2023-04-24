@@ -54,7 +54,9 @@ func (s *Snowflake) Getid() uid {
 		s.sequence = (s.sequence + 1) & sequenceMask //如果超过12个bit,与sequenceMask&结果为0
 		if s.sequence == 0 {
 			//等待下一个好毫秒
-			now = time.Now().UnixNano() / 1000000
+			for now <= s.timestamp {
+				now = time.Now().UnixNano() / 1000000
+			}
 		}
 	} else {
 		s.sequence = 0 //不同时间下，序列号从另零开始
