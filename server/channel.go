@@ -101,7 +101,7 @@ func NewChannel(topicName, channelName string, nsqd *NSQD, deleteCallback delete
 
 	//初始化磁盘队列
 	if c.ephemeral {
-		//TODO :特殊初始化
+		c.backend = newFakeBackendQueue()
 	} else {
 		backendName := getBackendName(topicName, channelName)
 		c.backend = diskqueue.New(
@@ -543,7 +543,7 @@ func (c *Channel) TouchMessage(clientID int64, id MessageID, clientMsgTimeout ti
 	//从PQremove
 	c.removeInFlightPQ(msg)
 	newTimeout := time.Now().Add(clientMsgTimeout)
-	if newTimeout.Sub(msg.dis_time) >= c.nsqd.getOpts().MsgTimeout {
+	if newTimeout.Sub(msg.dis_time) >= c.nsqd.getOpts().MaxMsgTimeout {
 		//将超时时间设置为最大，减少重发次数
 		newTimeout = msg.dis_time.Add(c.nsqd.getOpts().MaxMsgTimeout)
 	}
