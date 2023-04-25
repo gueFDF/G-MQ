@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-type deletecallback func(*Channel)
 type Consumer interface {
 	UnPause()
 	Pause()
@@ -81,7 +80,7 @@ func (c *Channel) initPQ() {
 }
 
 // new channel
-func NewChannel(topicName, channelName string, nsqd *NSQD, deleteCallback deletecallback) *Channel {
+func NewChannel(topicName, channelName string, nsqd *NSQD, deleteCallback func(*Channel)) *Channel {
 	c := &Channel{
 		topicName:      topicName,
 		name:           channelName,
