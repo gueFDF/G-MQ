@@ -28,7 +28,13 @@ type Options struct {
 	MaxBodySize   int64
 	ClientTimeout time.Duration
 
-	MaxChannelConsumers int //channel的最大订阅数 （0表示没有限制）
+	MaxHeartbeatInterval   time.Duration //最大心跳周期
+	MaxRdyCount            int64
+	MaxOutputBufferSize    int64 //
+	MaxOutputBufferTimeout time.Duration
+	MinOutputBufferTimeout time.Duration
+	OutputBufferTimeout    time.Duration //flush的周期
+	MaxChannelConsumers    int           //channel的最大订阅数 （0表示没有限制）
 
 	// diskqueue options
 	DataPath        string        //磁盘文件存储路径
@@ -66,7 +72,13 @@ func NewOptions() *Options {
 		MaxBodySize:   5 * 1024 * 1024,
 		ClientTimeout: 60 * time.Second,
 
-		MaxChannelConsumers: 0,
+		MaxHeartbeatInterval:   60 * time.Second,
+		MaxRdyCount:            2500,
+		MaxOutputBufferSize:    64 * 1024,
+		MaxOutputBufferTimeout: 30 * time.Second,
+		MinOutputBufferTimeout: 25 * time.Millisecond,
+		OutputBufferTimeout:    250 * time.Millisecond,
+		MaxChannelConsumers:    0,
 
 		MemQueueSize:    10000,
 		MaxBytesPerFile: 100 * 1024 * 1024,
