@@ -250,6 +250,7 @@ func (t *Topic) messagePump() {
 			goto exit
 		case <-t.startChan:
 		}
+		break
 	}
 	t.RLock()
 	//拷贝一份client,后续对拷贝的操作，从而高效的保证了channelMap的并发安全
@@ -289,13 +290,150 @@ func (t *Topic) messagePump() {
 				backendChan = t.backend.ReadChan()
 			}
 			continue
-		//case 
+		case <-t.pauseChan: //更新
+			if len(chans) == 0 || t.IsPaused() {
+				memoryMsgChan = nil
+				backendChan = nil
+			} else {
+				memoryMsgChan = t.memoryMsgChan
+				backendChan = t.backend.ReadChan()
+			}
+			continue
+		case <-t.exitChan:
+			goto exit
+		}
+		//进行消息转发
+		for i, channel := range chans {
+			chanMsg := msg
+			//保证每一个channel使用不同消息实例
+			if i > 0 {
+				chanMsg = NewMessage(msg.ID, msg.Body)
+				chanMsg.Timestamp = msg.Timestamp
+				chanMsg.deferred = msg.deferred
+			}
+			if chanMsg.deferred != 0 {
+				channel.PutDeferred(chanMsg, msg.deferred)
+				continue
+			}
+			err := channel.PutMessage(chanMsg)
+			if err != nil {
+				mlog.Error("TOPIC(%s) ERROR: failed to put msg(%s) to channel(%s) - %s",
+					t.name, msg.ID, channel.name, err)
+			}
 		}
 	}
 exit:
+	mlog.Info("TOPIC(%s): closing ... messagePump", t.name)
 }
 
+func (t *Topic) exit(deleted bool) error {
+	if !atomic.CompareAndSwapInt32(&t.exitFlag, 0, 1) {
+		return errors.New("exiting")
+	}
+	//要进行删除
+	if deleted {
+		mlog.Info("TOPIC(%s): deleting", t.name)
+		//TODO :从LOOkUp删除注册
+	} else {
+		mlog.Info("TOPIC(%s): closing", t.name)
+	}
+
+	//通知messagepupm退出
+	close(t.exitChan)
+	t.waitGroup.Wait() //等待退出
+
+	if deleted {
+		t.Lock()
+		//删除
+		for _, channel := range t.channelMap {
+			delete(t.channelMap, channel.name)
+			channel.Delete()
+		}
+		t.Unlock()
+		t.Empty()
+		return t.backend.Close()
+	}
+
+	t.RLock()
+	//close所有客户端
+	for _, channel := range t.channelMap {
+		err := channel.Close()
+		if err != nil {
+			mlog.Error("channel(%s) close - %s", channel.name, err)
+		}
+	}
+	t.RUnlock()
+	t.flush()
+	return t.backend.Close()
+}
+
+// 清空数据
+func (t *Topic) Empty() error {
+	for {
+		select {
+		case <-t.memoryMsgChan:
+		default:
+			goto finish
+		}
+	}
+finish:
+	return t.backend.Empty()
+}
+
+// 将缓存中的数据刷新到磁盘
+func (t *Topic) flush() error {
+	if len(t.memoryMsgChan) > 0 {
+		mlog.Info("TOPIC(%s): flushing %d memory messages to backend",
+			t.name, len(t.memoryMsgChan))
+	}
+	for {
+		select {
+		case msg := <-t.memoryMsgChan:
+			writeMessageToBackend(msg, t.backend)
+		default:
+			goto finish
+		}
+
+	}
+finish:
+	return nil
+}
+
+func (t *Topic) Pause() error {
+	return t.doPause(true)
+}
+
+func (t *Topic) Unpase() error {
+	return t.doPause(false)
+}
+
+func (t *Topic) doPause(pause bool) error {
+	if pause {
+		atomic.StoreInt32(&t.paused, 1)
+	} else {
+		atomic.StoreInt32(&t.paused, 0)
+	}
+	//更新channel的状态
+	// t.RLock()
+	// for _, channel := range t.channelMap {
+	// 	if pause {
+	// 		channel.Pause()
+	// 	} else {
+	// 		channel.UnPause()
+	// 	}
+	// }
+	// t.RUnlock()
+
+	select {
+	case t.pauseChan <- 1:
+	case <-t.exitChan:
+	}
+	return nil
+}
 func (t *Topic) IsPaused() bool {
-	//memoryMsgChan=nil
-	return true
+	return atomic.LoadInt32(&t.paused) == 1
+}
+
+func (t *Topic) GetId() MessageID {
+	return MessageID(t.idFactory.Getid().Tobytes())
 }
