@@ -111,8 +111,10 @@ func (t *Topic) GetChannel(channelName string) *Channel {
 // 返回channel ，如果channel原本存在返回false,如果是新创建的返回true
 func (t *Topic) getOrCreatChannel(channelName string) (*Channel, bool) {
 	c, ok := t.channelMap[channelName]
+	//创建新的channel
 	if !ok {
-		deleteCallback := func(c *Channel) { //channel delete是调用回调，从topic中的channelmap删除
+		//channel delete是调用回调，从topic中的channelmap删除
+		deleteCallback := func(c *Channel) {
 			t.DeleteExistingChannel(c.name)
 		}
 		channel := NewChannel(t.name, channelName, t.nsqd, deleteCallback)

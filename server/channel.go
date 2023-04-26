@@ -323,6 +323,7 @@ func (c *Channel) AddClient(clientId int64, client Consumer) error {
 	return nil
 }
 
+// TODO :此类操作是否会并发
 func (c *Channel) RemoveClient(clientID int64) error {
 	c.exitMutex.RLock()
 	defer c.exitMutex.RUnlock()
@@ -338,9 +339,10 @@ func (c *Channel) RemoveClient(clientID int64) error {
 	}
 	c.Lock()
 	delete(c.clients, clientID)
+	len := len(c.clients)
 	c.Unlock()
 
-	if len(c.clients) == 0 && c.ephemeral {
+	if len == 0 && c.ephemeral {
 		//如果该channel是临时的，即将被deleted，调删除回调
 		go c.deleter.Do(func() {
 			c.deleteCallback(c)
