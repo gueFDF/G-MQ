@@ -297,7 +297,8 @@ func (c *client) SetMsgTimeout(msgTimeout int) error {
 // 刷新
 func (c *client) Flush() error {
 	var zeroTime time.Time
-	//TODO ?此处的目的
+	//TODO ?此处的目的，为什么设置为心跳
+	//设置写超时
 	if c.HeartbeatInterval > 0 {
 		c.SetWriteDeadline(time.Now().Add(c.HeartbeatInterval))
 	} else {
