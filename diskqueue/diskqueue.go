@@ -191,7 +191,7 @@ func (d *diskQueue) exit(deleted bool) error {
 	return nil
 }
 
-// 持久化元数据
+// 载入元数据(加载到缓存)
 func (d *diskQueue) retrieveMetaData() error {
 	var f *os.File
 	var err error
@@ -219,7 +219,7 @@ func (d *diskQueue) retrieveMetaData() error {
 	return nil
 }
 
-// 同步元数据
+// 更新元数据(加载到磁盘)
 func (d *diskQueue) persistMetaData() error {
 	var f *os.File
 	var err error
