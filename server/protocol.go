@@ -73,7 +73,6 @@ func (p *protocol) IOLoop(c abstract.Client) error {
 
 		var response []byte
 
-		//TODO:err的返回需要特别关注
 		response, err = p.Exec(client, params)
 		if err != nil {
 			ctx := ""
@@ -82,6 +81,12 @@ func (p *protocol) IOLoop(c abstract.Client) error {
 			}
 			mlog.Error("[%s] - %s%s", client, err, ctx)
 
+			//将err返回给client
+			sendErr := p.Send(client, frameTypeError, []byte(err.Error()))
+			if sendErr != nil {
+				mlog.Error("[%s] - %s%s", client, sendErr, ctx)
+				break
+			}
 			//此类错误需要直接断开连接
 			if _, ok := err.(*util.FatalClientErr); ok {
 				break
@@ -112,7 +117,14 @@ func (p *protocol) messagePupm(c *client, startchan chan bool) {
 
 // 根据指令执行对应的函数
 func (p *protocol) Exec(c *client, params [][]byte) ([]byte, error) {
+	// TODO 进行identify tls
+	switch {
 
+	}
+
+	// 无效的指令
+	//TODO:此处
+	return nil, util.NewFatalClientErr(nil, "E_INVALID", fmt.Sprintf("invalid command %s", params[0]))
 }
 
 // 发送消息 len+type+data
@@ -141,4 +153,123 @@ func (p *protocol) Send(c *client, Type int32, data []byte) error {
 
 	c.writeLock.Unlock()
 	return err
+}
+
+// 发送message
+func (p *protocol) SendMessage(client *client, msg *Message) error {
+	mlog.Debug("PROTOCOL(V2): writing msg(%s) to client(%s) - %s", msg.ID, client, msg.Body)
+	buf := bufferPoolGet()
+	defer bufferPoolPut(buf)
+
+	_, err := msg.WriteTo(buf)
+	if err != nil {
+		return err
+	}
+	err = p.Send(client, frameTypeMessage, buf.Bytes())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *protocol) messagePump(c *client, startChan chan bool) {
+	var err error
+	var memoryMsgChan chan *Message
+	var backendChan <-chan []byte
+	var subChannel *Channel //绑定的channel
+
+	var flusherChan <-chan time.Time
+
+
+	subEventChan := c.SubEventChan
+	outputBufferTicker := time.NewTicker(c.OutputBufferTimeout)
+	heartbeatTicker := time.NewTicker(c.HeartbeatInterval)
+	heartbeatChan := heartbeatTicker.C
+	MsgTimeout := c.MsgTimeout
+
+	flushed := true
+
+	//通知父协程，messagePump已经启动
+	close(startChan)
+
+	for {
+		if subChannel == nil || !c.IsReadyForMessages() {
+			//不具备接受消息的能力
+			//置空，防止在不具备接受消息能力的时候触发，导致压力过大或者消息丢失
+			memoryMsgChan = nil
+			backendChan = nil
+			flusherChan = nil
+
+			//强制进行一次刷新，保证状态切换时缓时buffio中的数据flush
+			c.writeLock.Lock()
+			err = c.Flush()
+			c.writeLock.Unlock()
+			if err != nil {
+				goto exit
+			}
+			flushed = true
+		} else if flushed {
+			memoryMsgChan = subChannel.memoryMsgChan
+			backendChan = subChannel.backend.ReadChan()
+			flusherChan = nil
+		} else {
+			memoryMsgChan = subChannel.memoryMsgChan
+			backendChan = subChannel.backend.ReadChan()
+			flusherChan = outputBufferTicker.C
+		}
+
+		select {
+		case <-flusherChan:
+			//flush
+			c.writeLock.Lock()
+			err = c.Flush()
+			c.writeLock.Unlock()
+			if err != nil {
+				goto exit
+			}
+			flushed = true
+		case <-c.ReadyStateChan: //客户端状态更新时触发，使进入下一次循环
+		case subChannel = <-subEventChan:
+			subChannel = nil //只绑定一次
+		case <-heartbeatChan: //心跳
+			err = p.Send(c, frameTypeResponse, heartbeatBytes)
+			if err != nil {
+				goto exit
+			}
+		case b := <-backendChan:
+			msg, err := decodeMessage(b)
+			if err != nil {
+				mlog.Error("failed to decode message - %s", err)
+				continue
+			}
+			msg.Attempts++
+			subChannel.StartInfilghtTimeout(msg, msg.clientID, MsgTimeout)
+			c.SendingMessage()
+			err = p.SendMessage(c, msg)
+			if err != nil {
+				goto exit
+			}
+			flushed = false
+		case msg := <-memoryMsgChan:
+			msg.Attempts++
+
+			subChannel.StartInfilghtTimeout(msg, c.ID, MsgTimeout)
+			c.SendingMessage()
+			err = p.SendMessage(c, msg)
+			if err != nil {
+				goto exit
+			}
+			flushed = false
+		case <-c.ExitChan:
+			goto exit
+		}
+
+	}
+exit:
+	mlog.Info("PROTOCOL: [%s] exiting messagePump", c)
+	heartbeatTicker.Stop()  
+	outputBufferTicker.Stop()
+	if err != nil {
+		mlog.Error("PROTOCOL: [%s] messagePump error - %s", c, err)
+	}
 }

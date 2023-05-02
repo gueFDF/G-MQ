@@ -93,7 +93,7 @@ func decodeMessage(b []byte) (*Message, error) {
 	return &msg, nil
 }
 
-// TODO:  writeMessageToBackend 用于写入磁盘队列
+
 
 // 写磁盘通过buffer适配writeTo
 func writeMessageToBackend(msg *Message, bq BackendQueue) error {
