@@ -124,7 +124,7 @@ func (p *protocol) Exec(c *client, params [][]byte) ([]byte, error) {
 
 	// 无效的指令
 	//TODO:此处
-	return nil, util.NewFatalClientErr(nil, "E_INVALID", fmt.Sprintf("invalid command %s", params[0]))
+	return nil, util.NewFatalClientErr(nil, E_INVALID, fmt.Sprintf("invalid command %s", params[0]))
 }
 
 // 发送消息 len+type+data
@@ -179,7 +179,6 @@ func (p *protocol) messagePump(c *client, startChan chan bool) {
 	var subChannel *Channel //绑定的channel
 
 	var flusherChan <-chan time.Time
-
 
 	subEventChan := c.SubEventChan
 	outputBufferTicker := time.NewTicker(c.OutputBufferTimeout)
@@ -267,9 +266,65 @@ func (p *protocol) messagePump(c *client, startChan chan bool) {
 	}
 exit:
 	mlog.Info("PROTOCOL: [%s] exiting messagePump", c)
-	heartbeatTicker.Stop()  
+	heartbeatTicker.Stop()
 	outputBufferTicker.Stop()
 	if err != nil {
 		mlog.Error("PROTOCOL: [%s] messagePump error - %s", c, err)
 	}
+}
+
+// 绑定 SUB topicname channelname
+func (p *protocol) SUB(client *client, params [][]byte) ([]byte, error) {
+	//状态验证
+	if atomic.LoadInt32(&client.State) != stateInit {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, "cannot SUB in current state")
+	}
+	//配置验证
+	if client.HeartbeatInterval <= 0 {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, "cannot SUB with heartbeats disabled")
+	}
+	//确保三个参数
+	if len(params) < 3 {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, "SUB insufficient number of parameters")
+	}
+	//topicname符合要求
+	topicName := string(params[1])
+	if IsValidTopicName(topicName) {
+		return nil, util.NewFatalClientErr(nil, E_BAD_TOPIC,
+			fmt.Sprintf("SUB topic name %q is not valid", topicName))
+	}
+	//channelname符合要求
+	channelname := string(params[2])
+	if IsValidChannelName(channelname) {
+		return nil, util.NewFatalClientErr(nil, E_BAD_CHANNEL,
+			fmt.Sprintf("SUB channel name %q is not valid", channelname))
+	}
+
+	var channel *Channel
+
+	for i := 1; ; i++ {
+		topic := p.nsqd.getTopic(topicName)
+		channel := topic.GetChannel(channelname)
+		if err := channel.AddClient(client.ID, client); err != nil {
+			return nil, util.NewFatalClientErr(err, E_SUB_FAILED, "SUB failed "+err.Error())
+		}
+
+		//如果此时channel或topic正在关闭，等待关闭
+		//TODO :此处干了什么
+		if (channel.ephemeral && channel.Exiting()) || (topic.ephemeral && topic.Exiting()) {
+			channel.RemoveClient(client.ID)
+			if i < 2 {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return nil, util.NewFatalClientErr(nil, E_SUB_FAILED, "SUB failed to deleted topic/channel")
+		}
+		break
+	}
+	//改变状态，已绑定
+	atomic.StoreInt32(&client.State, stateSubscribed)
+
+	client.SubEventChan <- channel
+
+	return okBytes, nil
 }

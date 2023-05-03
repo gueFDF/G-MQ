@@ -63,7 +63,7 @@ type client struct {
 	clientId string
 	Hostname string
 
-	SubEventChan chan *Channel //绑定的channel
+	SubEventChan chan *Channel //绑定的channel,用来进行通知protocol中的messagePump协程
 
 	//两个可重复使用的缓冲区
 	lenbuf   [4]byte
@@ -176,8 +176,7 @@ func (c *client) Empty() {
 func (c *client) SendingMessage() {
 	atomic.AddInt64(&c.InFlightCount, 1)
 	atomic.AddUint64(&c.MessageCount, 1)
-
-	//TODO? 此处是否需要进行update
+	c.tryUpdateReadyState()
 }
 
 // PUB
@@ -204,7 +203,7 @@ func (c *client) RequeuedMessage() {
 func (c *client) StartClose() {
 	c.SetReadyCount(0)
 	atomic.StoreInt32(&c.State, stateClosing)
-	//TODO? 此处是否需要进行update
+	c.tryUpdateReadyState()
 }
 
 // ? 此处目的是什么

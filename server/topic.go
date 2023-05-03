@@ -328,6 +328,14 @@ exit:
 	mlog.Info("TOPIC(%s): closing ... messagePump", t.name)
 }
 
+func (t *Topic) Delete() error {
+	return t.exit(true)
+}
+
+func (t *Topic) Close() error {
+	return t.exit(false)
+}
+
 func (t *Topic) exit(deleted bool) error {
 	if !atomic.CompareAndSwapInt32(&t.exitFlag, 0, 1) {
 		return errors.New("exiting")
