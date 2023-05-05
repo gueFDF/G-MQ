@@ -5,11 +5,13 @@ import (
 	"MQ/mlog"
 	"MQ/util"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 // 类型
@@ -327,4 +329,87 @@ func (p *protocol) SUB(client *client, params [][]byte) ([]byte, error) {
 	client.SubEventChan <- channel
 
 	return okBytes, nil
+}
+
+// ack message finish
+// FIN ID
+func (p *protocol) FIN(client *client, params [][]byte) ([]byte, error) {
+	state := atomic.LoadInt32(&client.State)
+	if state != stateSubscribed && state != stateClosing {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, "cannot FIN in current state")
+	}
+	//确保2个参数
+	if len(params) < 2 {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, "FIN insufficient number of parameters")
+	}
+
+	id, err := getMessageID(params[1])
+	if err != nil {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, err.Error())
+	}
+	//finish message
+	err = client.Channel.FinishMessage(client.ID, *id)
+	if err != nil {
+		return nil, util.NewClientErr(err, E_FIN_FAILED,
+			fmt.Sprintf("FIN %s failed %s", *id, err.Error()))
+	}
+	client.FinshedMessage()
+	return nil, nil
+}
+
+// 消息重发
+// REQ ID TIMEOUT
+func (p *protocol) REQ(client *client, params [][]byte) ([]byte, error) {
+	state := atomic.LoadInt32(&client.State)
+	if state != stateSubscribed && state != stateClosing {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, "cannot REQ in current state")
+	}
+	if len(params) < 3 {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, "REQ insufficient number of parameters")
+	}
+
+	id, err := getMessageID(params[1])
+	if err != nil {
+		return nil, util.NewFatalClientErr(nil, E_INVALID, err.Error())
+	}
+	timeoutMs, err := util.ByteToBase10(params[2])
+	if err != nil {
+		return nil, util.NewFatalClientErr(err, E_INVALID,
+			fmt.Sprintf("REQ could not parse timeout %s", params[2]))
+	}
+	timeoutDuration := time.Duration(timeoutMs) * time.Millisecond
+
+	maxReqTimeout := p.nsqd.getOpts().MaxReqTimeout
+	clampedTimeout := timeoutDuration
+
+	//req超时消息的延迟发送时间，不能超过最大重发延时时间，<0表示不延时
+	if timeoutDuration < 0 {
+		clampedTimeout = 0
+	} else if timeoutDuration > maxReqTimeout {
+		clampedTimeout = maxReqTimeout
+	}
+	if clampedTimeout != timeoutDuration {
+		mlog.Info("PROTOCOL: [%s] REQ timeout %d out of range 0-%d. Setting to %d",
+			client, timeoutDuration, maxReqTimeout, clampedTimeout)
+		timeoutDuration = clampedTimeout
+	}
+
+	err = client.Channel.RequeueMessage(client.ID, *id, timeoutDuration)
+	if err != nil {
+		return nil, util.NewClientErr(err, E_REQ_FAILED,
+			fmt.Sprintf("REQ %s failed %s", *id, err.Error()))
+	}
+
+	client.RequeuedMessage()
+	return nil, nil
+}
+
+// 验证ID的有效性
+func getMessageID(p []byte) (*MessageID, error) {
+	if len(p) != MsgIDLength {
+		return nil, errors.New("invalid message ID")
+	}
+
+	//将[]byte类型转换为*MessageID类型
+	return (*MessageID)(unsafe.Pointer(&p[0])), nil
 }

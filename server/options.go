@@ -26,6 +26,7 @@ type Options struct {
 	MaxMsgTimeout time.Duration //消息的最长超时时间，如果超过则将会将该消息的超时时间设置这个，减少重发次数
 	MaxMsgSize    int64         //消息的最大大小
 	MaxBodySize   int64
+	MaxReqTimeout time.Duration //最大的重发超时时长
 	ClientTimeout time.Duration
 
 	MaxHeartbeatInterval   time.Duration //最大心跳周期
@@ -70,6 +71,7 @@ func NewOptions() *Options {
 		MaxMsgTimeout: 15 * time.Minute,
 		MaxMsgSize:    1024 * 1024,
 		MaxBodySize:   5 * 1024 * 1024,
+		MaxReqTimeout: 1 * time.Hour,
 		ClientTimeout: 60 * time.Second,
 
 		MaxHeartbeatInterval:   60 * time.Second,
